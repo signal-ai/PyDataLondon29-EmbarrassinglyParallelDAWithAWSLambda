@@ -5,12 +5,18 @@ from textblob import TextBlob
 setup()
 
 def process(event, context):
-    text = "Go Serverless v1.0! Your function executed successfully!"
-    print("Blobbing the text {}".format(text))
+    text = event['text']
+    print("Blobbing the text:\n----{}".format(text))
     blob = TextBlob(text)
     print("Finished blobbing!")
     return {
         "text": text,
         "tags": blob.tags,
-        "event": event
+        "sentiment": blob.sentiment
     }
+
+if False:
+
+    from handler import *
+
+    process(None, None)
