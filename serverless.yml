@@ -1,0 +1,18 @@
+service: pydata29
+
+provider:
+  name: aws
+  runtime: python2.7
+  stage: dev
+  region: eu-west-1
+
+functions:
+  process:
+    handler: handler.process
+
+resources:
+  Resources:
+    NewResource:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: pydata29-data
