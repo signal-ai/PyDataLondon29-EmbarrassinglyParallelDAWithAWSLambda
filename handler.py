@@ -1,22 +1,18 @@
 #!/usr/bin/env python
 from textblob_setup import setup
-from textblob import TextBlob
+from pydata29 import processor, io_handler
 
 setup()
 
 def process(event, context):
-    text = event['text']
-    print("Blobbing the text:\n----{}".format(text))
-    blob = TextBlob(text)
-    print("Finished blobbing!")
+    filepath = event['filepath']
+    processor.process_part(filepath)
     return {
-        "text": text,
-        "tags": blob.tags,
-        "sentiment": blob.sentiment
+        "filepath": filepath,
     }
 
 if False:
 
     from handler import *
 
-    process(None, None)
+    # process(None, None)
