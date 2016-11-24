@@ -5,14 +5,24 @@ provider:
   runtime: python2.7
   stage: dev
   region: eu-west-1
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action: s3:*
+      Resource: arn:aws:s3:::pydata-29/*
+    - Effect: Allow
+      Action:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+      Resource: "*"
 
 functions:
   process:
     handler: handler.process
 
-resources:
-  Resources:
-    NewResource:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: pydata29-data
+#resources:
+  #Resources:
+    #ExistingResource:
+      #Type: AWS::S3::Bucket
+      #Properties:
+        #BucketName: pydata-29

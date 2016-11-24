@@ -102,10 +102,10 @@ class FrameWriter(Writer):
             raise ValueError("DataFrame columns must be unique for orient="
                              "'%s'." % self.orient)
 
-
 def read_json(path_or_buf=None, orient=None, typ='frame', dtype=True,
               convert_axes=True, convert_dates=True, keep_default_dates=True,
-              numpy=False, precise_float=False, date_unit=None):
+              numpy=False, precise_float=False, date_unit=None, encoding=None,
+              lines=False):
     """
     Convert a JSON string to pandas object
 
@@ -116,32 +116,38 @@ def read_json(path_or_buf=None, orient=None, typ='frame', dtype=True,
         file. For file URLs, a host is expected. For instance, a local file
         could be ``file://localhost/path/to/table.json``
 
-    orient
+    orient : string,
+        Indication of expected JSON string format.
+        Compatible JSON strings can be produced by ``to_json()`` with a
+        corresponding orient value.
+        The set of possible orients is:
 
-        * `Series`
+        - ``'split'`` : dict like
+          ``{index -> [index], columns -> [columns], data -> [values]}``
+        - ``'records'`` : list like
+          ``[{column -> value}, ... , {column -> value}]``
+        - ``'index'`` : dict like ``{index -> {column -> value}}``
+        - ``'columns'`` : dict like ``{column -> {index -> value}}``
+        - ``'values'`` : just the values array
 
+        The allowed and default values depend on the value
+        of the `typ` parameter.
+
+        * when ``typ == 'series'``,
+
+          - allowed orients are ``{'split','records','index'}``
           - default is ``'index'``
-          - allowed values are: ``{'split','records','index'}``
           - The Series index must be unique for orient ``'index'``.
 
-        * `DataFrame`
+        * when ``typ == 'frame'``,
 
+          - allowed orients are ``{'split','records','index',
+            'columns','values'}``
           - default is ``'columns'``
-          - allowed values are: {'split','records','index','columns','values'}
-          - The DataFrame index must be unique for orients 'index' and
-            'columns'.
-          - The DataFrame columns must be unique for orients 'index',
-            'columns', and 'records'.
-
-        * The format of the JSON string
-
-          - split : dict like
-            ``{index -> [index], columns -> [columns], data -> [values]}``
-          - records : list like
-            ``[{column -> value}, ... , {column -> value}]``
-          - index : dict like ``{index -> {column -> value}}``
-          - columns : dict like ``{column -> {index -> value}}``
-          - values : just the values array
+          - The DataFrame index must be unique for orients ``'index'`` and
+            ``'columns'``.
+          - The DataFrame columns must be unique for orients ``'index'``,
+            ``'columns'``, and ``'records'``.
 
     typ : type of object to recover (series or frame), default 'frame'
     dtype : boolean or dict, default True
@@ -178,13 +184,64 @@ def read_json(path_or_buf=None, orient=None, typ='frame', dtype=True,
         is to try and detect the correct precision, but if this is not desired
         then pass one of 's', 'ms', 'us' or 'ns' to force parsing only seconds,
         milliseconds, microseconds or nanoseconds respectively.
+    lines : boolean, default False
+        Read the file as a json object per line.
+
+        .. versionadded:: 0.19.0
+
+    encoding : str, default is 'utf-8'
+        The encoding to use to decode py3 bytes.
+
+        .. versionadded:: 0.19.0
 
     Returns
     -------
-    result : Series or DataFrame
+    result : Series or DataFrame, depending on the value of `typ`.
+
+    See Also
+    --------
+    DataFrame.to_json
+
+    Examples
+    --------
+
+    >>> df = pd.DataFrame([['a', 'b'], ['c', 'd']],
+    ...                   index=['row 1', 'row 2'],
+    ...                   columns=['col 1', 'col 2'])
+
+    Encoding/decoding a Dataframe using ``'split'`` formatted JSON:
+
+    >>> df.to_json(orient='split')
+    '{"columns":["col 1","col 2"],
+      "index":["row 1","row 2"],
+      "data":[["a","b"],["c","d"]]}'
+    >>> pd.read_json(_, orient='split')
+          col 1 col 2
+    row 1     a     b
+    row 2     c     d
+
+    Encoding/decoding a Dataframe using ``'index'`` formatted JSON:
+
+    >>> df.to_json(orient='index')
+    '{"row 1":{"col 1":"a","col 2":"b"},"row 2":{"col 1":"c","col 2":"d"}}'
+    >>> pd.read_json(_, orient='index')
+          col 1 col 2
+    row 1     a     b
+    row 2     c     d
+
+    Encoding/decoding a Dataframe using ``'records'`` formatted JSON.
+    Note that index labels are not preserved with this encoding.
+
+    >>> df.to_json(orient='records')
+    '[{"col 1":"a","col 2":"b"},{"col 1":"c","col 2":"d"}]'
+    >>> pd.read_json(_, orient='records')
+      col 1 col 2
+    0     a     b
+    1     c     d
     """
 
-    filepath_or_buffer, _, _ = get_filepath_or_buffer(path_or_buf)
+    filepath_or_buffer, _, _ = get_filepath_or_buffer(path_or_buf,
+                                                      encoding=encoding)
     if isinstance(filepath_or_buffer, compat.string_types):
         try:
             exists = os.path.exists(filepath_or_buffer)
@@ -195,7 +252,7 @@ def read_json(path_or_buf=None, orient=None, typ='frame', dtype=True,
             exists = False
 
         if exists:
-            with open(filepath_or_buffer, 'r') as fh:
+            with _get_handle(filepath_or_buffer, 'r', encoding=encoding) as fh:
                 json = fh.read()
         else:
             json = filepath_or_buffer
@@ -203,6 +260,12 @@ def read_json(path_or_buf=None, orient=None, typ='frame', dtype=True,
         json = filepath_or_buffer.read()
     else:
         json = filepath_or_buffer
+
+    if lines:
+        # If given a json lines file, we break the string into lines, add
+        # commas and put it in a json list to make a valid json object.
+        lines = list(StringIO(json.strip()))
+        json = u'[' + u','.join(lines) + u']'
 
     obj = None
     if typ == 'frame':
