@@ -19,6 +19,8 @@ provider:
 functions:
   process:
     handler: handler.process
+    timeout: 300
+    memory: 1024
 
 #resources:
   #Resources:

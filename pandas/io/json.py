@@ -7,7 +7,7 @@ import numpy as np
 
 import pandas.json as _json
 from pandas.tslib import iNaT
-from pandas.compat import long, u
+from pandas.compat import StringIO, long, u
 from pandas import compat, isnull
 from pandas import Series, DataFrame, to_datetime
 from pandas.io.common import get_filepath_or_buffer
