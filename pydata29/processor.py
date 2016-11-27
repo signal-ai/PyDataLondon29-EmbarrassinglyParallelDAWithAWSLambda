@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import re
 import copy
+import json
 import boto3
 import pandas
 from functools import reduce
@@ -9,6 +10,8 @@ from textblob import TextBlob
 from collections import Counter, defaultdict
 
 s3 = io_handler.s3_client()
+lambda_client = io_handler.lambda_client()
+default_lambda_arn = 'arn:aws:lambda:eu-west-1:261000137328:function:pydata29-dev-process'
 
 gender_pronouns = {
     'he': 'male',
@@ -30,7 +33,7 @@ def textblob_file_at_file_path(filepath):
     df['tags'] = df.blob.apply(lambda b: b.tags)
     df['polarity'] = df.blob.apply(lambda b: b.sentiment.polarity)
     df['subjectivity'] = df.blob.apply(lambda b: b.sentiment.subjectivity)
-    return df[['id', 'tags', 'polarity', 'subjectivity']]
+    return df[['id', 'tags', 'polarity', 'subjectivity', 'published']]
 
 def clean_token(tok):
     return re_cleaner.sub('', tok.lower())
@@ -42,8 +45,7 @@ def pronoun_gender(tok):
     return gender_pronouns.get(tok, 'neutral')
 
 def positive_or_negative(polarity, subjectivity):
-    is_positive = ((subjectivity >= 0.5 and polarity >= 0) or
-                   (polarity >= 0.7))
+    is_positive = polarity > 0
     return 'positive' if is_positive else 'negative'
 
 def count_tags_in_df(df):
@@ -71,42 +73,23 @@ def process_part(part_filepath):
     merged = pandas.merge(df, counts_df[per_article_agg_cols],
                           right_index=True, left_index=True, how='outer')
     columns_to_drop = [c for c in merged.columns.values
-                       if c not in ['polarity', 'subjectivity'] + per_article_agg_cols]
+                       if c not in ['polarity', 'subjectivity', 'published'] + per_article_agg_cols]
     per_article_df = merged.drop(columns_to_drop, 1)
     totals_series = counts_df.sum()
 
-    article_file_name = 'articles/{}'.format(part['name'])
-    totals_file_name = 'totals/{}'.format(part['name'])
+    root_parent = part['root_parent']
+    article_file_name = '{}/articles/{}'.format(root_parent, part['name'])
+    totals_file_name = '{}/totals/{}'.format(root_parent, part['name'])
 
-    if part.get('bucket'):
-        d = per_article_df
-        csv = d.to_csv(None,
-                       index_label='id',
-                       index=True,
-                       sep=';')
-        a_response = s3.put_object(Body   = csv,
-                                   Bucket = part['bucket'],
-                                   Key    = article_file_name)
-        d = totals_series
-        csv = d.to_csv(None,
-                       index=True,
-                       header=['count'],
-                       index_label='agg',
-                       sep=';')
-        t_response = s3.put_object(Body   = csv,
-                                   Bucket = part['bucket'],
-                                   Key    = totals_file_name)
-    else:
-        root = '/'.join(part['root'].split('/')[:-1])
-        per_article_df.to_csv('{}/{}'.format(root, article_file_name),
-                              index_label='id',
-                              index=True,
-                              sep=';')
-        totals_series.to_csv('{}/{}'.format(root, totals_file_name),
-                             index=True,
-                             header=['count'],
-                             index_label='agg',
-                             sep=';')
+    io_handler.write_pandas_to_csv(per_article_df, article_file_name,
+                                   {'index_label' : 'id',
+                                    'index' : True,
+                                    'sep' : ';'})
+    io_handler.write_pandas_to_csv(totals_series, totals_file_name,
+                                   {'index_label' : 'agg',
+                                    'header' : ['count'],
+                                    'index' : True,
+                                    'sep' : ';'})
 
     print("PROGRESS::Processed part {}!".format(part['name']))
 
@@ -115,6 +98,24 @@ def add_series(a, b):
 
 def reduce_series_list(series_list):
     return reduce(add_series, series_list)
+
+def concat_dataframe_list(df_list):
+    return pandas.concat(df_list)
+
+def process_filepath_in_lambda(filepath,
+                               lambda_arn = default_lambda_arn):
+    payload_dict = {
+      "filepath": filepath,
+    }
+    payload = json.dumps(payload_dict)
+
+    print('PROGRESS::Calling lambda with {} payload'.format(payload))
+    lambda_client.invoke(
+        FunctionName = lambda_arn,
+        Payload      = payload
+    )
+    print('PROGRESS::Job with payload {}, done.'.format(payload))
+    return 'done'
 
 if __name__ == '__main__':
     from pprint import PrettyPrinter

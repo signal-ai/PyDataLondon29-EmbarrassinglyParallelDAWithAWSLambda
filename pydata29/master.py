@@ -39,14 +39,52 @@ def concurrent_reduce(fn, data, chunk_size = 100):
         size = size or 1
     return reduced[0]
 
+def results(filepaths):
+    totals_filepaths = [io_handler.file_path_to_output_path(f, 'totals') for f in filepaths]
+    articles_filepaths = [io_handler.file_path_to_output_path(f, 'articles') for f in filepaths]
+    yield processor.reduce_series_list(
+        map(io_handler.load_totals_csv_as_series, totals_filepaths)
+    )
+    yield processor.concat_dataframe_list(
+        map(io_handler.load_articles_csv_as_df, articles_filepaths)
+    )
+
+def dump_results(generator, root):
+    io_handler.write_pandas_to_csv(next(generator),
+                                   '{}/totals.csv'.format(root),
+                                   {'index_label': 'agg',
+                                    'header': ['count'],
+                                    'index': True,
+                                    'sep': ';'})
+    io_handler.write_pandas_to_csv(next(generator),
+                                   '{}/processed_articles.csv'.format(root),
+                                   {'index_label' : 'id',
+                                    'index' : True,
+                                    'sep' : ';'})
+
 def process_locally():
     filepaths = io_handler.list_file_paths()
     concurrent_map(processor.process_part, filepaths)
+    results_root = '{}/results'.format(
+        io_handler.describe_file_path(filepaths[0])['root_parent']
+    )
+    dump_results(
+        results(filepaths),
+        results_root
+    )
 
-def reduce_locally():
-    totals_filepaths = map(lambda f: io_handler.file_path_to_output_path(f, 'totals'), filepaths)
-    totals_series = map(io_handler.load_totals_csv_as_series, totals_filepaths)
-    return concurrent_reduce(processor.reduce_series_list, totals_series)
+def process_lambda():
+    filepaths = io_handler.list_file_paths(data_root='s3://pydata-29/data')
+    concurrent_map(processor.process_filepath_in_lambda, filepaths,
+                   executor_class=concurrent.futures.ThreadPoolExecutor,
+                   executor_params={'max_workers': 90})
+    results_root = '{}/results'.format(
+        io_handler.describe_file_path(filepaths[0])['root_parent']
+    )
+    dump_results(
+        results(filepaths),
+        results_root
+    )
 
 if __name__ == '__main__':
-    process_locally()
+    process_lambda()
