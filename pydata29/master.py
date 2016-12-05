@@ -74,7 +74,7 @@ def process_locally():
     filepaths = io_handler.list_file_paths()[:10]
     return concurrent_map(processor.process_part, filepaths)
 
-def process_lambda(concurrency = 801):
+def process_lambda(concurrency = 850):
     filepaths = io_handler.list_file_paths(data_root='s3://pydata-29/data')[:10]
     return concurrent_map(processor.process_filepath_in_lambda, filepaths,
                           executor_class=concurrent.futures.ThreadPoolExecutor,
