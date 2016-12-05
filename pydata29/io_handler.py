@@ -54,7 +54,7 @@ def list_file_paths(data_root       = defaults['data_root'],
                 prefix    = prefix,
                 num       = num,
                 width     = width
-            ) for num in range(1045)]
+            ) for num in range(10000)]
 
 def load_jsonl_as_pandas(file_path, options = {}):
     source = file_path
@@ -100,11 +100,11 @@ def write_pandas_to_csv(pandas_object, path, options={}):
         response = s3.put_object(Body   = csv,
                                  Bucket = bucket,
                                  Key    = key)
-        return path
     else:
         print("Writing file {} to filesystem.".format(path))
-        return pandas_object.to_csv(path, **options)
+        pandas_object.to_csv(path, **options)
     print("Wrote to path {}!".format(path))
+    return path
 if __name__ == '__main__':
     from pprint import PrettyPrinter
     pp = PrettyPrinter()
@@ -114,14 +114,14 @@ if __name__ == '__main__':
         import setup
         from loader import *
 
-    pp.pprint('listing file paths...')
-    file_paths = list_file_paths()
-    pp.pprint(len(file_paths))
-    pp.pprint(file_paths[-1])
+        pp.pprint('listing file paths...')
+        file_paths = list_file_paths()
+        pp.pprint(len(file_paths))
+        pp.pprint(file_paths[-1])
 
-    pp.pprint('loading file paths...')
-    part_index = 0
-    part = load_jsonl_as_pandas(file_paths[part_index])
-    pp.pprint('sample loaded...')
-    pp.pprint(part)
+        pp.pprint('loading file paths...')
+        part_index = 0
+        part = load_jsonl_as_pandas(file_paths[part_index])
+        pp.pprint('sample loaded...')
+        pp.pprint(part)
 
