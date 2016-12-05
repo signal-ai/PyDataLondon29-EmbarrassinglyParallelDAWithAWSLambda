@@ -5,7 +5,10 @@ import processor
 import io_handler
 
 def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
+    """
+    Yield successive n-sized chunks from l.
+    http://stackoverflow.com/a/312464
+    """
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
@@ -29,6 +32,11 @@ def concurrent_map(fn, data,
         return executor.map(fn, data)
 
 def concurrent_reduce(fn, data, chunk_size = 100):
+    """
+    This ends up being slower for the dataset used for these experiments.
+    Maybe if you have data that won't fit into memory it is a good option,
+    but using dask dataframe might also be a good option.
+    """
     size = chunk_size
     reduced = [d for d in copy.deepcopy(data) if d is not None]
     while len(reduced) > 1:
