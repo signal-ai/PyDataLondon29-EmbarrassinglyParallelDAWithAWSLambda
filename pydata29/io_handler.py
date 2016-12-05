@@ -54,7 +54,7 @@ def list_file_paths(data_root       = defaults['data_root'],
                 prefix    = prefix,
                 num       = num,
                 width     = width
-            ) for num in range(10000)]
+            ) for num in range(1045)]
 
 def load_jsonl_as_pandas(file_path, options = {}):
     source = file_path

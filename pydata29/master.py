@@ -63,28 +63,31 @@ def dump_results(generator, root):
                                     'sep' : ';'})
 
 def process_locally():
-    filepaths = io_handler.list_file_paths()
-    concurrent_map(processor.process_part, filepaths)
-    results_root = '{}/results'.format(
-        io_handler.describe_file_path(filepaths[0])['root_parent']
-    )
-    dump_results(
-        results(filepaths),
-        results_root
-    )
+    filepaths = io_handler.list_file_paths()[:10]
+    return concurrent_map(processor.process_part, filepaths)
 
-def process_lambda():
-    filepaths = io_handler.list_file_paths(data_root='s3://pydata-29/data')
-    concurrent_map(processor.process_filepath_in_lambda, filepaths,
-                   executor_class=concurrent.futures.ThreadPoolExecutor,
-                   executor_params={'max_workers': 90})
-    results_root = '{}/results'.format(
-        io_handler.describe_file_path(filepaths[0])['root_parent']
-    )
-    dump_results(
-        results(filepaths),
-        results_root
-    )
+def process_lambda(concurrency = 801):
+    filepaths = io_handler.list_file_paths(data_root='s3://pydata-29/data')[:10]
+    return concurrent_map(processor.process_filepath_in_lambda, filepaths,
+                          executor_class=concurrent.futures.ThreadPoolExecutor,
+                          executor_params={'max_workers': concurrency})
 
 if __name__ == '__main__':
-    process_lambda()
+    import sys
+    architecture = sys.argv[1].strip() if len(sys.argv) >= 2 else 'local'
+    concurrency = int(sys.argv[2]) if len(sys.argv) >= 3 else 801
+    if  'lambda' in architecture:
+        res = process_lambda(concurrency)
+    else:
+        res = process_locally()
+    [r for r in res]
+    print("Done")
+
+
+    # results_root = '{}/results'.format(
+        # io_handler.describe_file_path(filepaths[0])['root_parent']
+    # )
+    # dump_results(
+        # results(filepaths),
+        # results_root
+    # )
